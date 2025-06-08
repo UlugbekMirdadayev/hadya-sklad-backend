@@ -44,15 +44,15 @@ app.use((err, req, res, next) => {
 });
 
 // Handle 404 errors
-// app.use((req, res) => {
-//   req.path === "/privacy"
-//     ? res.sendFile(__dirname + "/public/privacy.html")
-//     : req.path === "/terms"
-//     ? res.sendFile(__dirname + "/public/terms.html")
-//     : req.path === "/help"
-//     ? res.sendFile(__dirname + "/public/help.html")
-//     : res.status(404).sendFile(__dirname + "/public/404.html");
-// });
+app.use((req, res) => {
+  req.path === "/privacy"
+    ? res.sendFile(__dirname + "/public/privacy.html")
+    : req.path === "/terms"
+    ? res.sendFile(__dirname + "/public/terms.html")
+    : req.path === "/help"
+    ? res.sendFile(__dirname + "/public/help.html")
+    : res.status(404).sendFile(__dirname + "/public/404.html");
+});
 
 // Server startup
 const PORT = process.env.PORT || 8080;
