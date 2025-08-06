@@ -16,28 +16,9 @@ const robosellRoutes = require("./routes/robosellRoute");
 const app = express();
 const server = http.createServer(app);
 
-// CORS Configuration
+// CORS Configuration - Открыто для всех доменов
 const corsOptions = {
-  origin: function (origin, callback) {
-    // Разрешенные домены
-    const allowedOrigins = [
-      "https://hadya-sklad-backend-production.up.railway.app",
-      "http://localhost:3000",
-      "http://localhost:3001",
-      "http://localhost:5173", // Vite dev server
-      "http://localhost:8080",
-      // Добавьте ваши frontend домены здесь
-    ];
-
-    // Разрешить запросы без origin (например, мобильные приложения, Postman)
-    if (!origin) return callback(null, true);
-
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error("Доступ запрещен CORS политикой"));
-    }
-  },
+  origin: true, // Разрешить доступ с любых доменов
   credentials: true, // Разрешить отправку cookies и авторизационных заголовков
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: [
