@@ -94,7 +94,7 @@ router.get("/", auth, async (req, res) => {
 
     const inventory = await Inventory.find()
       .sort({ createdAt: -1 })
-      .populate("product", "name sku unit")
+      .populate("product", "name sku unit costPrice")
       .populate("chef", "fullName phone balance role")
       .populate("branch", "name")
       .skip(skip)

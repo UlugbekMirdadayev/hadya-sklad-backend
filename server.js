@@ -11,7 +11,6 @@ const balanceRoutes = require("./routes/balanceRoutes");
 const inventoryRoutes = require("./routes/inventoryRoutes");
 const transactionRoutes = require("./routes/transactionRoutes");
 const branchRoutes = require("./routes/branchRoutes");
-const robosellRoutes = require("./routes/robosellRoute");
 
 const app = express();
 const server = http.createServer(app);
@@ -81,7 +80,6 @@ app.use("/api/dashboard", balanceRoutes);
 app.use("/api/inventory", inventoryRoutes);
 app.use("/api/transactions", transactionRoutes);
 app.use("/api/branches", branchRoutes);
-app.use("/api/robosell", robosellRoutes);
 
 // Global error handler
 app.use((err, req, res, next) => {

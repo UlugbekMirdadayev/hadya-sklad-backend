@@ -183,7 +183,7 @@ router.put("/:id", async (req, res) => {
     postTelegramMessage(
       `🔄 Ingredient yangilandi!\n` +
         `📦 Mahsulot: <b>${updated.name}</b>\n` +
-        `🔢 Miqdor: ${diff} ${updated.unit}\n` +
+        `🔢 Miqdor: ${Math.abs(diff)} ${updated.unit}\n` +
         `💸 Tranzaksiya: <b>${
           transaction.type === "cash-in" ? "Kirim" : "Chiqim"
         }</b>\n` +
