@@ -11,6 +11,7 @@ const dashboardRoutes = require("./routes/dashboardRoutes");
 const inventoryRoutes = require("./routes/inventoryRoutes");
 const transactionRoutes = require("./routes/transactionRoutes");
 const branchRoutes = require("./routes/branchRoutes");
+const photoRoute = require("./routes/photoRoutes");
 
 const app = express();
 const server = http.createServer(app);
@@ -80,6 +81,7 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/inventory", inventoryRoutes);
 app.use("/api/transactions", transactionRoutes);
 app.use("/api/branches", branchRoutes);
+app.use("/api/photo", photoRoute);
 
 // Global error handler
 app.use((err, req, res, next) => {

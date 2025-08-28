@@ -62,6 +62,10 @@ router.post("/", auth, async (req, res) => {
       chef: chefId,
       branch: branchId,
     });
+
+    // Balansni yangilash uchun workerPrice'ni olish
+    const workerTotalPrice = product.workerPrice * quantity;
+
     if (!inventory) {
       inventory = new Inventory({
         product: productId,
@@ -74,8 +78,17 @@ router.post("/", auth, async (req, res) => {
       inventory.updatedAt = Date.now();
     }
 
+    // Chef balansini yangilash
+    chef.balance += workerTotalPrice;
+    await chef.save();
+
     await inventory.save();
-    res.status(201).json({ message: "Ombor yangilandi!", inventory });
+    res.status(201).json({ 
+      message: "Ombor yangilandi!", 
+      inventory,
+      chefBalance: chef.balance,
+      workerTotalPrice
+    });
   } catch (error) {
     res
       .status(500)

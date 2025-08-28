@@ -6,6 +6,17 @@ const postTelegramMessage = require("../config/tg");
 const Admin = require("../models/Admin");
 const Worker = require("../models/Worker");
 
+// HTML belgilarini himoya qilish funksiyasi
+function escapeHtml(text) {
+  if (text == null || typeof text !== 'string') return '';
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // 💸 Pul kirimi
 router.post("/cash-in", auth, async (req, res) => {
   try {
@@ -45,7 +56,7 @@ router.post("/cash-in", auth, async (req, res) => {
       `\nTranzaksiya turi: <b>${
         transaction.type === "cash-in" ? "Kirim" : "Chiqim"
       }</b>` +
-        `\nMiqdor: <b>${transaction.amount?.toLocaleString()} so'm</b>` +
+        `\nMiqdor: <b>${transaction.amount?.toLocaleString() || 0} so'm</b>` +
         `\nTo'lov turi: <b>${
           transaction.paymentType === "cash"
             ? "Naqd"
@@ -53,10 +64,10 @@ router.post("/cash-in", auth, async (req, res) => {
             ? "Karta"
             : "Nasiya"
         }</b>` +
-        `\nIzoh: <b>${transaction.description}</b>` +
+        `\nIzoh: <b>${escapeHtml(transaction.description) || "Yo'q"}</b>` +
         `\nTranzaksiya ID: <b>${transaction._id}</b>` +
         `\nTranzaksiya qilingan vaqt: <b>${transaction.createdAt.toLocaleString()}</b>` +
-        `\nTranzaksiya qilingan admin: <b>${isUser.fullName}</b>`
+        `\nTranzaksiya qilingan admin: <b>${escapeHtml(isUser?.fullName) || "Noma'lum"}</b>`
     )
       .then(() => {
         console.log("success post message telegram");
@@ -110,10 +121,10 @@ router.post("/cash-out", auth, async (req, res) => {
       : null;
 
     postTelegramMessage(
-      `\nTranzaksiya turi: <>${
+      `\nTranzaksiya turi: <b>${
         transaction.type === "cash-in" ? "Kirim" : "Chiqim"
       }</b>` +
-        `\nMiqdor: <b>${transaction.amount?.toLocaleString()} so'm</b>` +
+        `\nMiqdor: <b>${transaction.amount?.toLocaleString() || 0} so'm</b>` +
         `\nTo'lov turi: <b>${
           transaction.paymentType === "cash"
             ? "Naqd"
@@ -121,10 +132,10 @@ router.post("/cash-out", auth, async (req, res) => {
             ? "Karta"
             : "Nasiya"
         }</b>` +
-        `\nIzoh: <b>${transaction.description}</b>` +
+        `\nIzoh: <b>${escapeHtml(transaction.description) || "Yo'q"}</b>` +
         `\nTranzaksiya ID: <b>${transaction._id}</b>` +
         `\nTranzaksiya qilingan vaqt: <b>${transaction.createdAt.toLocaleString()}</b>` +
-        `\nTranzaksiya qilingan admin: <b>${isUser.fullName}</b>`
+        `\nTranzaksiya qilingan admin: <b>${escapeHtml(isUser?.fullName) || "Noma'lum"}</b>`
     )
       .then(() => {
         console.log("success post message telegram");
@@ -192,9 +203,9 @@ router.get("/credits", auth, async (req, res) => {
     limit = Math.round(limit);
 
     // Qarz tranzaksiyalarini filtrlash
-    let filter = { 
+    let filter = {
       paymentType: "credit",
-      type: "cash-in"
+      type: "cash-in",
     };
 
     // Status bo'yicha filtrlash
@@ -216,26 +227,27 @@ router.get("/credits", auth, async (req, res) => {
 
     // Umumiy qarz miqdorini hisoblash
     const totalDebtAmount = await Transaction.aggregate([
-      { 
-        $match: { 
-          paymentType: "credit", 
-          type: "cash-in", 
-          amount: { $gt: 0 } 
-        } 
+      {
+        $match: {
+          paymentType: "credit",
+          type: "cash-in",
+          amount: { $gt: 0 },
+        },
       },
-      { 
-        $group: { 
-          _id: null, 
-          total: { $sum: "$amount" } 
-        } 
-      }
+      {
+        $group: {
+          _id: null,
+          total: { $sum: "$amount" },
+        },
+      },
     ]);
 
     res.status(200).json({
       currentPage: parseInt(page),
       totalPages: Math.ceil(totalCount / limit),
       totalItems: totalCount,
-      totalActiveDebt: totalDebtAmount.length > 0 ? totalDebtAmount[0].total : 0,
+      totalActiveDebt:
+        totalDebtAmount.length > 0 ? totalDebtAmount[0].total : 0,
       credits,
     });
   } catch (error) {
@@ -253,7 +265,8 @@ router.post("/credit/payment/:id", auth, async (req, res) => {
 
     if (!paymentAmount || paymentAmount <= 0) {
       return res.status(400).json({
-        message: "To'lov miqdori kiritilishi kerak va 0 dan katta bo'lishi kerak.",
+        message:
+          "To'lov miqdori kiritilishi kerak va 0 dan katta bo'lishi kerak.",
       });
     }
 
@@ -270,20 +283,14 @@ router.post("/credit/payment/:id", auth, async (req, res) => {
     }
 
     if (creditTransaction.paymentType !== "credit") {
-      return res.status(400).json({ 
-        message: "Bu tranzaksiya qarz (credit) emas" 
-      });
-    }
-
-    if (creditTransaction.type !== "cash-in") {
-      return res.status(400).json({ 
-        message: "Faqat kirim (cash-in) qarzlarini to'lash mumkin" 
+      return res.status(400).json({
+        message: "Bu tranzaksiya qarz (credit) emas",
       });
     }
 
     if (creditTransaction.amount === 0) {
-      return res.status(400).json({ 
-        message: "Bu qarz allaqachon to'liq to'langan" 
+      return res.status(400).json({
+        message: "Bu qarz allaqachon to'liq to'langan",
       });
     }
 
@@ -305,7 +312,9 @@ router.post("/credit/payment/:id", auth, async (req, res) => {
       type: "cash-out",
       amount: paymentAmount,
       paymentType,
-      description: `Qarz to'lovi: ${creditTransaction.description || 'Nasiya to\'lovi'} [ID: ${creditTransaction._id}]`,
+      description: `Qarz to'lovi: ${
+        creditTransaction.description || "Nasiya to'lovi"
+      } [ID: ${creditTransaction._id}]`,
       createdBy: currentUser,
     });
 
@@ -313,30 +322,35 @@ router.post("/credit/payment/:id", auth, async (req, res) => {
 
     // 2. Eski qarz tranzaksiyasini yangilash
     const remainingDebt = creditTransaction.amount - paymentAmount;
-    
+
     if (remainingDebt === 0) {
       // To'liq to'langan - qarz miqdorini 0 ga tenglaymiz, lekin nasiya yozuvi qoladi
       creditTransaction.amount = 0;
-      creditTransaction.description = (creditTransaction.description || '') + ' [TO\'LIQ TO\'LANGAN]';
+      creditTransaction.description =
+        (creditTransaction.description || "") + " [TO'LIQ TO'LANGAN]";
     } else {
       // Qisman to'langan - qoldiq miqdorni yangilaymiz
       creditTransaction.amount = remainingDebt;
-      creditTransaction.description = (creditTransaction.description || '') + ` [${paymentAmount.toLocaleString()} so'm to'landi]`;
+      creditTransaction.description =
+        (creditTransaction.description || "") +
+        ` [${paymentAmount.toLocaleString()} so'm to'landi]`;
     }
 
     await creditTransaction.save();
 
     // Telegram xabarini yuborish
-    const telegramMessage = 
+    const telegramMessage =
       `\n🔄 <b>QARZ TO'LOVI</b>` +
       `\nTo'langan miqdor: <b>${paymentAmount.toLocaleString()} so'm</b>` +
       `\nTo'lov turi: <b>${paymentType === "cash" ? "Naqd" : "Karta"}</b>` +
       `\nQoldiq qarz: <b>${remainingDebt.toLocaleString()} so'm</b>` +
-      `\nStatus: <b>${remainingDebt === 0 ? "TO'LIQ TO'LANGAN" : "QISMAN TO'LANGAN"}</b>` +
-      `\nIzoh: <b>${description || "Yo'q"}</b>` +
+      `\nStatus: <b>${
+        remainingDebt === 0 ? "TO'LIQ TO'LANGAN" : "QISMAN TO'LANGAN"
+      }</b>` +
+      `\nIzoh: <b>${escapeHtml(description) || "Yo'q"}</b>` +
       `\nTo'lovi ID: <b>${paymentTransaction._id}</b>` +
       `\nAsl qarz ID: <b>${creditTransaction._id}</b>` +
-      `\nTo'lagan shaxs: <b>${isUser?.fullName || "Noma'lum"}</b>` +
+      `\nTo'lagan shaxs: <b>${escapeHtml(isUser?.fullName) || "Noma'lum"}</b>` +
       `\nVaqt: <b>${new Date().toLocaleString()}</b>`;
 
     postTelegramMessage(telegramMessage)
@@ -344,17 +358,20 @@ router.post("/credit/payment/:id", auth, async (req, res) => {
         console.log("Qarz to'lovi haqida Telegram xabari yuborildi");
       })
       .catch((err) => {
-        console.log("Telegram xabar yuborishda xatolik:", err?.response?.data || err.message);
+        console.log(
+          "Telegram xabar yuborishda xatolik:",
+          err?.response?.data || err.message
+        );
       });
 
     res.status(201).json({
-      message: remainingDebt === 0 ? "Qarz to'liq to'landi" : "Qarz qisman to'landi",
+      message:
+        remainingDebt === 0 ? "Qarz to'liq to'landi" : "Qarz qisman to'landi",
       paymentTransaction,
       updatedCreditTransaction: creditTransaction,
       remainingDebt,
-      isFullyPaid: remainingDebt === 0
+      isFullyPaid: remainingDebt === 0,
     });
-
   } catch (error) {
     console.error("Qarz to'lashda xatolik:", error);
     res.status(500).json({
@@ -373,8 +390,8 @@ router.get("/credit/:id/payments", auth, async (req, res) => {
     }
 
     if (creditTransaction.paymentType !== "credit") {
-      return res.status(400).json({ 
-        message: "Bu tranzaksiya qarz emas" 
+      return res.status(400).json({
+        message: "Bu tranzaksiya qarz emas",
       });
     }
 
@@ -382,7 +399,7 @@ router.get("/credit/:id/payments", auth, async (req, res) => {
     // Description'da qarz ID'si mavjud bo'lgan chiqim tranzaksiyalarini qidirish
     const payments = await Transaction.find({
       type: "cash-out",
-      description: { $regex: creditTransaction._id.toString() }
+      description: { $regex: creditTransaction._id.toString() },
     }).sort({ createdAt: 1 });
 
     // Agar description'da ID yo'q bo'lsa, vaqt oralig'i bo'yicha qidirish (fallback)
@@ -392,8 +409,10 @@ router.get("/credit/:id/payments", auth, async (req, res) => {
       fallbackPayments = await Transaction.find({
         type: "cash-out",
         createdAt: { $gte: creditTransaction.createdAt },
-        description: { $regex: /qarz|to'lov|nasiya/i }
-      }).sort({ createdAt: 1 }).limit(10);
+        description: { $regex: /qarz|to'lov|nasiya/i },
+      })
+        .sort({ createdAt: 1 })
+        .limit(10);
     }
 
     res.status(200).json({
@@ -411,7 +430,7 @@ router.get("/credit/:id/payments", auth, async (req, res) => {
 
 router.delete("/:id", async (req, res) => {
   try {
-    const deleted = await Transaction.findOneAndDelete({ id: req.params._id });
+    const deleted = await Transaction.findByIdAndDelete(req.params.id);
     if (!deleted) {
       return res.status(404).json({ message: "Transaction topilmadi" });
     }

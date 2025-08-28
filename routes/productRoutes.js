@@ -30,7 +30,7 @@ const generateUniqueSKU = async (name) => {
 
   if (exists) {
     throw new Error(
-      "Noyob SKU yaratilolmadi. Iltimos, keyinroq urinib ko‘ring."
+      "Noyob SKU yaratilolmadi. Iltimos, keyinroq urinib ko'ring."
     );
   }
 
@@ -40,11 +40,11 @@ const generateUniqueSKU = async (name) => {
 // Ingredient validatsiyasi
 const validateIngredients = async (ingredients) => {
   if (!Array.isArray(ingredients))
-    return "Ingredientlar massiv bo‘lishi kerak.";
+    return "Ingredientlar massiv bo'lishi kerak.";
 
   for (const item of ingredients) {
     if (!item.ingredient || !item.quantity || !item.unit) {
-      return "Har bir ingredientda 'ingredient', 'quantity', va 'unit' bo‘lishi kerak.";
+      return "Har bir ingredientda 'ingredient', 'quantity', va 'unit' bo'lishi kerak.";
     }
     const doc = await Ingredient.findById(item.ingredient);
     if (!doc) return `Ingredient topilmadi: ${item.ingredient}`;
@@ -56,11 +56,11 @@ const validateIngredients = async (ingredients) => {
 // Collaboration validatsiyasi
 const validateCollaborations = async (collaboration, selfSKU = null) => {
   if (!Array.isArray(collaboration))
-    return "Hamkor mahsulotlar massiv bo‘lishi kerak.";
+    return "Hamkor mahsulotlar massiv bo'lishi kerak.";
 
   for (const item of collaboration) {
     if (!item.product || !item.quantity) {
-      return "Har bir hamkor mahsulotda 'product' va 'quantity' bo‘lishi kerak.";
+      return "Har bir hamkor mahsulotda 'product' va 'quantity' bo'lishi kerak.";
     }
 
     const productDoc = await Product.findById(item.product);
@@ -69,7 +69,7 @@ const validateCollaborations = async (collaboration, selfSKU = null) => {
     }
 
     if (selfSKU && productDoc.sku === selfSKU) {
-      return "Mahsulot o‘zini o‘zi hamkor qila olmaydi.";
+      return "Mahsulot o'zini o'zi hamkor qila olmaydi.";
     }
   }
 
@@ -89,12 +89,19 @@ const calculateCostPrice = async (ingredients) => {
 // === CREATE PRODUCT ===
 router.post("/", async (req, res) => {
   try {
-    const { name, ingredients, unit, salePrice, collaboration = [] } = req.body;
+    const { 
+      name, 
+      ingredients, 
+      unit, 
+      salePrice, 
+      workerPrice, 
+      collaboration = [] 
+    } = req.body;
 
     if (!name || !unit) {
       return res
         .status(400)
-        .json({ message: "Nomi va o‘lchov birligi majburiy." });
+        .json({ message: "Nomi va o'lchov birligi majburiy." });
     }
 
     const ingredientErr = await validateIngredients(ingredients);
@@ -111,6 +118,7 @@ router.post("/", async (req, res) => {
       ingredients,
       unit,
       salePrice,
+      workerPrice: workerPrice || 0,
       costPrice,
       collaboration,
       sku,
@@ -128,12 +136,19 @@ router.post("/", async (req, res) => {
 // === UPDATE PRODUCT BY SKU ===
 router.put("/:sku", async (req, res) => {
   try {
-    const { name, ingredients, unit, salePrice, collaboration = [] } = req.body;
+    const { 
+      name, 
+      ingredients, 
+      unit, 
+      salePrice, 
+      workerPrice, 
+      collaboration = [] 
+    } = req.body;
 
     if (!name || !unit) {
       return res
         .status(400)
-        .json({ message: "Nomi va o‘lchov birligi majburiy." });
+        .json({ message: "Nomi va o'lchov birligi majburiy." });
     }
 
     const ingredientErr = await validateIngredients(ingredients);
@@ -154,6 +169,7 @@ router.put("/:sku", async (req, res) => {
         ingredients,
         unit,
         salePrice,
+        workerPrice: workerPrice !== undefined ? workerPrice : 0,
         costPrice,
         collaboration,
       },
@@ -210,9 +226,57 @@ router.delete("/:sku", async (req, res) => {
     if (!deleted) {
       return res.status(404).json({ message: "Mahsulot topilmadi" });
     }
-    res.status(200).json({ message: "Mahsulot o‘chirildi" });
+    res.status(200).json({ message: "Mahsulot o'chirildi" });
   } catch (err) {
-    res.status(400).json({ message: "O‘chirishda xato", error: err.message });
+    res.status(400).json({ message: "O'chirishda xato", error: err.message });
+  }
+});
+
+// === GET PRODUCTS WITH WORKER PRICES ===
+router.get("/worker/prices", async (req, res) => {
+  try {
+    const products = await Product.find({ workerPrice: { $gt: 0 } }).populate([
+      { path: "ingredients.ingredient" },
+      { path: "collaboration.product" },
+    ]);
+    res.status(200).json(products);
+  } catch (err) {
+    res
+      .status(400)
+      .json({ message: "Ishchi narxlari bo'lgan mahsulotlarni olishda xato", error: err.message });
+  }
+});
+
+// === UPDATE WORKER PRICE BY SKU ===
+router.patch("/:sku/worker-price", async (req, res) => {
+  try {
+    const { workerPrice } = req.body;
+
+    if (workerPrice === undefined || workerPrice < 0) {
+      return res
+        .status(400)
+        .json({ message: "Ishchi narxi musbat son bo'lishi kerak." });
+    }
+
+    const updatedProduct = await Product.findOneAndUpdate(
+      { sku: req.params.sku },
+      { workerPrice },
+      { new: true }
+    );
+
+    if (!updatedProduct) {
+      return res.status(404).json({ message: "Mahsulot topilmadi" });
+    }
+
+    res.status(200).json({
+      message: "Ishchi narxi yangilandi",
+      product: updatedProduct
+    });
+  } catch (err) {
+    res.status(400).json({ 
+      message: "Ishchi narxini yangilashda xato", 
+      error: err.message 
+    });
   }
 });
 

@@ -17,6 +17,7 @@ const ProductsSchema = new mongoose.Schema(
     sku: { type: String, unique: true },
     unit: { type: String, required: true },
     salePrice: { type: Number, default: 0 },
+    workerPrice: { type: Number, default: 1000 },
     costPrice: { type: Number, default: 0 },
     collaboration: [
       {
