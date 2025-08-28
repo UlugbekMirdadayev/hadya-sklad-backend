@@ -3,7 +3,6 @@ const router = express.Router();
 const Inventory = require("../models/Inventory");
 const Product = require("../models/Product");
 const Ingredient = require("../models/Ingredient");
-const Balance = require("../models/Balance");
 const Transaction = require("../models/Transaction");
 const Worker = require("../models/Worker");
 const Branch = require("../models/Branch");
@@ -87,20 +86,42 @@ router.post("/", auth, async (req, res) => {
 // 📦 Ombordagi mahsulotlar (pagination bilan)
 router.get("/", auth, async (req, res) => {
   try {
-    let { page = 1, limit = 10 } = req.query;
+    let { page = 1, limit = 10, branch, search, chef } = req.query;
     page = Math.max(1, Math.round(page));
     limit = Math.max(1, Math.round(limit));
     const skip = (page - 1) * limit;
 
-    const inventory = await Inventory.find()
+    const match = {};
+    if (branch) {
+      match.branch = branch;
+    }
+    if (chef) {
+      match.chef = chef;
+    }
+
+    // Mahsulot nomi bo'yicha qidirish
+    let productIds = [];
+    if (search) {
+      // Сначала найдем все продукты, соответствующие поисковому запросу
+      const matchingProducts = await Product.find({
+        name: { $regex: search, $options: "i" },
+      });
+      productIds = matchingProducts.map((product) => product._id);
+
+      if (productIds.length > 0) {
+        match.product = { $in: productIds };
+      }
+    }
+
+    const inventory = await Inventory.find(match)
       .sort({ createdAt: -1 })
       .populate("product", "name sku unit costPrice")
-      .populate("chef", "fullName phone balance role")
+      .populate("chef", "fullName phone role")
       .populate("branch", "name")
       .skip(skip)
       .limit(limit);
 
-    const total = await Inventory.countDocuments();
+    const total = await Inventory.countDocuments(match);
 
     res.status(200).json({
       inventory,
@@ -193,11 +214,6 @@ router.post("/sell", auth, async (req, res) => {
       });
     }
 
-    let balance = await Balance.findOne();
-    if (!balance) balance = new Balance({ amount: 0 });
-    balance.amount += totalAmount;
-    await balance.save();
-
     const transaction = new Transaction({
       type: "cash-in",
       amount: totalAmount,
@@ -233,7 +249,7 @@ router.post("/sell", auth, async (req, res) => {
           : "Nasiya"
       }.\nSotuvchi: ${
         isUser.fullName
-      }.\nUmumiy miqdor: ${totalAmount?.toLocaleString()} uzs.\nHisob: ${balance.amount?.toLocaleString()} uzs.`;
+      }.\nUmumiy miqdor: ${totalAmount?.toLocaleString()} uzs.`;
 
       await postTelegramMessage(message);
     }
@@ -242,7 +258,6 @@ router.post("/sell", auth, async (req, res) => {
       message: "Sotuv muvaffaqiyatli amalga oshirildi!",
       transaction,
       updatedInventories,
-      balance: balance.amount,
     });
   } catch (error) {
     res.status(500).json({ message: "Sotuvda xatolik!", error: error.message });

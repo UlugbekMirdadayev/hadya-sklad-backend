@@ -9,10 +9,6 @@ const WorkersSchema = new mongoose.Schema(
       type: String,
       default: "worker",
     },
-    balance: {
-      type: Number,
-      default: 0,
-    },
     isDeleted: {
       type: Boolean,
       default: false,

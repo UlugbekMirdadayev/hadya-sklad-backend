@@ -5,7 +5,6 @@ const Transaction = require("../models/Transaction");
 const Admin = require("../models/Admin");
 const Worker = require("../models/Worker");
 const postTelegramMessage = require("../config/tg");
-const Balance = require("../models/Balance");
 
 const router = express.Router();
 router.use(auth);
@@ -54,15 +53,6 @@ router.post("/", async (req, res) => {
     const sku = await generateUniqueSKU(name);
     const totalCost = purchasePrice * currentStock;
 
-    let balance = await Balance.findOne();
-    if (!balance) balance = new Balance({ amount: 0 });
-
-    if (balance.amount < totalCost) {
-      return res.status(400).json({
-        message: `Hisobda mablag‘ yetarli emas. Mavjud: ${balance.amount} so‘m, kerak: ${totalCost} so‘m.`,
-      });
-    }
-
     const ingredient = new Ingredient({
       name,
       sku,
@@ -82,9 +72,6 @@ router.post("/", async (req, res) => {
       createdBy,
     });
     await transaction.save();
-
-    balance.amount -= totalCost;
-    await balance.save();
 
     const user = req.user.adminId
       ? await Admin.findById(req.user.adminId)
@@ -145,15 +132,6 @@ router.put("/:id", async (req, res) => {
     const diff = old.currentStock - +currentStock;
     const amount = Math.abs(diff * purchasePrice);
 
-    let balance = await Balance.findOne();
-    if (!balance) balance = new Balance({ amount: 0 });
-
-    if (diff < 0 && balance.amount < amount) {
-      return res.status(400).json({
-        message: `Hisobda yetarli mablag‘ yo‘q. Mavjud: ${balance.amount} so‘m, kerak: ${amount} so‘m.`,
-      });
-    }
-
     const updated = await Ingredient.findByIdAndUpdate(
       req.params.id,
       req.body,
@@ -168,13 +146,6 @@ router.put("/:id", async (req, res) => {
       createdBy: req.user.adminId || req.user.workerId,
     });
     await transaction.save();
-
-    if (diff > 0) {
-      balance.amount += amount;
-    } else {
-      balance.amount -= amount;
-    }
-    await balance.save();
 
     const user = req.user.adminId
       ? await Admin.findById(req.user.adminId)

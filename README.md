@@ -81,7 +81,6 @@ npm run dev
 | `/api/products`   | Mahsulotlar CRUD                  | GET/POST/PUT/DELETE |
 | `/api/ingredients`| Ingredientlar CRUD                | GET/POST/PUT/DELETE |
 | `/api/inventory`  | Ombor holatini boshqarish         | GET/POST/PUT/DELETE |
-| `/api/balance`    | Umumiy balansni ko‘rish           | GET |
 | `/api/transaction/sell`     | Mahsulot sotish va kirim      | POST |
 | `/api/transaction/cash-out` | Naqd chiqim (xarajat)         | POST |
 
