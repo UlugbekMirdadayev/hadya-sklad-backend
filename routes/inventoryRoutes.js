@@ -83,11 +83,11 @@ router.post("/", auth, async (req, res) => {
     await chef.save();
 
     await inventory.save();
-    res.status(201).json({ 
-      message: "Ombor yangilandi!", 
+    res.status(201).json({
+      message: "Ombor yangilandi!",
       inventory,
       chefBalance: chef.balance,
-      workerTotalPrice
+      workerTotalPrice,
     });
   } catch (error) {
     res
@@ -96,7 +96,8 @@ router.post("/", auth, async (req, res) => {
   }
 });
 
-// 📦 Ombordagi mahsulotlar (pagination bilan)
+// 📦 Ombordagi mahsulotlar (pagination + hisobot bilan)
+
 router.get("/", auth, async (req, res) => {
   try {
     let { page = 1, limit = 10, branch, search, chef } = req.query;
@@ -112,10 +113,9 @@ router.get("/", auth, async (req, res) => {
       match.chef = chef;
     }
 
-    // Mahsulot nomi bo'yicha qidirish
+    // 🔎 Mahsulot nomi bo‘yicha qidirish
     let productIds = [];
     if (search) {
-      // Сначала найдем все продукты, соответствующие поисковому запросу
       const matchingProducts = await Product.find({
         name: { $regex: search, $options: "i" },
       });
@@ -126,9 +126,10 @@ router.get("/", auth, async (req, res) => {
       }
     }
 
+    // 🔹 Pagedagi inventoryni olish
     const inventory = await Inventory.find(match)
       .sort({ createdAt: -1 })
-      .populate("product", "name sku unit costPrice")
+      .populate("product", "name sku unit costPrice salePrice")
       .populate("chef", "fullName phone role")
       .populate("branch", "name")
       .skip(skip)
@@ -136,11 +137,41 @@ router.get("/", auth, async (req, res) => {
 
     const total = await Inventory.countDocuments(match);
 
+    // 🔹 Umumiy hisobot (paginate qilmasdan)
+    const allInventories = await Inventory.find(match)
+      .populate("product", "costPrice salePrice")
+      .populate("chef", "_id");
+
+    let totalQuantity = 0;
+    let totalCost = 0;
+    let totalSaleValue = 0;
+    const uniqueChefs = new Set();
+    const uniqueProducts = new Set();
+
+    allInventories.forEach((inv) => {
+      if (inv.product) {
+        totalQuantity += inv.quantity;
+        totalCost += inv.quantity * (inv.product.costPrice || 0);
+        totalSaleValue += inv.quantity * (inv.product.salePrice || 0);
+        uniqueProducts.add(inv.product._id.toString());
+      }
+      if (inv.chef) {
+        uniqueChefs.add(inv.chef._id.toString());
+      }
+    });
+
     res.status(200).json({
-      inventory,
+      inventory, // faqat pagedagi inventory
       totalPages: Math.ceil(total / limit),
       currentPage: page,
       totalItems: total,
+      report: {
+        totalQuantity,
+        totalCost,
+        totalSaleValue,
+        totalChefs: uniqueChefs.size,
+        totalProducts: uniqueProducts.size,
+      }, // bu umumiy hisobot
     });
   } catch (error) {
     res.status(500).json({
@@ -274,6 +305,64 @@ router.post("/sell", auth, async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: "Sotuvda xatolik!", error: error.message });
+  }
+});
+// 🔄 Mahsulotni omborga qaytarish va chiqim transaction yozish
+router.post("/return", auth, async (req, res) => {
+  try {
+    const { inventoryId, returnQuantity, reason, productId, chef, branch } =
+      req.body;
+
+    // 1. Inventory dan topish
+    const inventory = await Inventory.findById(inventoryId).populate("product");
+    if (!inventory) {
+      return res.status(404).json({ message: "Ombor yozuvi topilmadi!" });
+    }
+
+    const isChef = await Worker.findById(chef);
+    if (!isChef) {
+      return res.status(404).json({ message: "Tayyorlovchi topilmadi!" });
+    }
+
+    const isBranch = await Branch.findById(branch);
+    if (!isBranch) {
+      return res.status(404).json({ message: "Filial topilmadi!" });
+    }
+
+    // 2. Agar yetarli quantity bo‘lmasa error
+    if (inventory.quantity < returnQuantity) {
+      return res
+        .status(400)
+        .json({ message: "Qaytarish uchun yetarli miqdor mavjud emas!" });
+    }
+
+    // 3. Quantity ni kamaytirish
+    inventory.quantity -= returnQuantity;
+    await inventory.save();
+
+    // 4. Transaction chiqim yozish
+    const product = inventory.product;
+    const totalCost = returnQuantity * (product?.costPrice || 0);
+
+    const transaction = new Transaction({
+      type: "cash-out",
+      amount: totalCost,
+      paymentType: "cash", // qaytarishda default naqd deb belgilash mumkin
+      description: `Mahsulot qaytarildi: ${product?.name} (${returnQuantity} ${product?.unit}), Sabab: ${reason}, Chef: ${isChef.fullName}, Filial: ${isBranch.name}`,
+      createdBy: req.user.adminId || req.user.workerId,
+    });
+
+    await transaction.save();
+
+    res.json({
+      message: "Maxsulot qaytarildi va chiqim yozildi",
+      updatedInventory: inventory,
+      transaction,
+    });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Qaytarishda xatolik!", error: error.message });
   }
 });
 
