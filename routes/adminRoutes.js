@@ -3,6 +3,7 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const Worker = require("../models/Worker");
 const Admin = require("../models/Admin");
+const Transaction = require("../models/Transaction");
 const validatePhoneNumber = require("../middleware/numberFormat");
 const adminAuth = require("../middleware/authMiddleware");
 
@@ -254,6 +255,42 @@ router.put("/worker/update/:id", adminAuth, async (req, res) => {
     res.status(200).json({
       message: "Worker muvaffaqiyatli yangilandi!",
       worker: updatedWorker,
+    });
+  } catch (error) {
+    res.status(500).json({ message: `Xatolik yuz berdi! ${error.message}` });
+  }
+});
+
+// Worker payment
+router.post("/worker/payment/:id", adminAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { amount } = req.body;
+    const { adminId } = req.user;
+
+    // Workerni tekshirish
+    const worker = await Worker.findById(id);
+    if (!worker) {
+      return res.status(404).json({ message: "Worker topilmadi!" });
+    }
+
+    // Paymentni yangilash
+    worker.balance -= amount;
+    await worker.save();
+
+    const transaction = new Transaction({
+      worker: id,
+      amount,
+      description: `Ishchi ${worker.fullName}'ga pul berildi. Qolgan mablag': ${worker.balance} so'm.`,
+      type: "cash-out",
+      paymentType: "cash",
+      createdBy: adminId,
+    });
+    await transaction.save();
+
+    res.status(200).json({
+      message: "Worker balansi muvaffaqiyatli yangilandi!",
+      worker,
     });
   } catch (error) {
     res.status(500).json({ message: `Xatolik yuz berdi! ${error.message}` });

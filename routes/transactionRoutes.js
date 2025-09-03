@@ -8,13 +8,13 @@ const Worker = require("../models/Worker");
 
 // HTML belgilarini himoya qilish funksiyasi
 function escapeHtml(text) {
-  if (text == null || typeof text !== 'string') return '';
+  if (text == null || typeof text !== "string") return "";
   return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 // 💸 Pul kirimi
@@ -67,7 +67,9 @@ router.post("/cash-in", auth, async (req, res) => {
         `\nIzoh: <b>${escapeHtml(transaction.description) || "Yo'q"}</b>` +
         `\nTranzaksiya ID: <b>${transaction._id}</b>` +
         `\nTranzaksiya qilingan vaqt: <b>${transaction.createdAt.toLocaleString()}</b>` +
-        `\nTranzaksiya qilingan admin: <b>${escapeHtml(isUser?.fullName) || "Noma'lum"}</b>`
+        `\nTranzaksiya qilingan admin: <b>${
+          escapeHtml(isUser?.fullName) || "Noma'lum"
+        }</b>`
     )
       .then(() => {
         console.log("success post message telegram");
@@ -135,7 +137,9 @@ router.post("/cash-out", auth, async (req, res) => {
         `\nIzoh: <b>${escapeHtml(transaction.description) || "Yo'q"}</b>` +
         `\nTranzaksiya ID: <b>${transaction._id}</b>` +
         `\nTranzaksiya qilingan vaqt: <b>${transaction.createdAt.toLocaleString()}</b>` +
-        `\nTranzaksiya qilingan admin: <b>${escapeHtml(isUser?.fullName) || "Noma'lum"}</b>`
+        `\nTranzaksiya qilingan admin: <b>${
+          escapeHtml(isUser?.fullName) || "Noma'lum"
+        }</b>`
     )
       .then(() => {
         console.log("success post message telegram");
@@ -156,7 +160,7 @@ router.post("/cash-out", auth, async (req, res) => {
 // 📄 Barcha tranzaksiyalar (sahifalash bilan)
 router.get("/", auth, async (req, res) => {
   try {
-    let { type, paymentType, page = 1, limit = 20 } = req.query;
+    let { type, paymentType, page = 1, limit = 20, search, worker } = req.query;
     if (page < 1) {
       page = 1;
     }
@@ -168,7 +172,15 @@ router.get("/", auth, async (req, res) => {
     const filter = {};
     if (type) filter.type = type;
     if (paymentType) filter.paymentType = paymentType;
-
+    if (search) {
+      filter.$or = [
+        { description: { $regex: search?.trim(), $options: "i" } },
+        { "worker.fullName": { $regex: search?.trim(), $options: "i" } },
+      ];
+    }
+    if (worker) {
+      filter.worker = worker;
+    }
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const [transactions, totalCount] = await Promise.all([

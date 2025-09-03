@@ -15,6 +15,11 @@ const TransactionSchema = new mongoose.Schema(
     },
     description: { type: String },
     createdBy: { type: mongoose.Schema.Types.ObjectId },
+    worker: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Worker",
+      default: null,
+    },
   },
   { timestamps: true, versionKey: false }
 );
